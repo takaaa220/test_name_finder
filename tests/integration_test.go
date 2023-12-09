@@ -58,6 +58,15 @@ func Test_Integration(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		"failure_test_name_not_found": {
+			args: args{
+				fileName:    "table_is_map_test.go",
+				lineNumber:  7,
+				startCursor: 0,
+				endCursor:   0,
+			},
+			wantErr: true,
+		},
 		"success_table_is_map": {
 			args: args{
 				fileName:    "table_is_map_test.go",
@@ -65,7 +74,7 @@ func Test_Integration(t *testing.T) {
 				startCursor: 3,
 				endCursor:   8,
 			},
-			want: "test1",
+			want: "\"Test_TableIsMap/test1\"",
 		},
 		"success_table_is_slice": {
 			args: args{
@@ -74,7 +83,7 @@ func Test_Integration(t *testing.T) {
 				startCursor: 10,
 				endCursor:   21,
 			},
-			want: "test2 test2",
+			want: "\"Test_TableIsSlice/test2 test2\"",
 		},
 	}
 
