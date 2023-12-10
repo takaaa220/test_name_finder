@@ -1,6 +1,6 @@
 {
-  "name": "go-test-name-finder",
-  "displayName": "go-test-name-finder",
+  "name": "go-test-executor",
+  "displayName": "go-test-executor",
   "description": "",
   "version": "0.0.1",
   "engines": {
@@ -16,22 +16,22 @@
       "editor/context": [
         {
           "when": "editorTextFocus && resourceFilename =~ /.*_test\\.go$/",
-          "command": "extension.findTest",
+          "command": "go-test-executor.exec",
           "group": "navigation"
         }
       ]
     },
     "commands": [
       {
-        "command": "extension.findTest",
-        "title": "Find Go Unit Test Name",
-        "category": "Go Test Name Finder"
+        "command": "go-test-executor.exec",
+        "title": "Execute Tests At Cursor",
+        "category": "Go Test Executor"
       }
     ]
   },
   "scripts": {
     "vscode:prepublish": "pnpm run compile",
-    "compile": "tsc -p ./",
+    "compile": "tsc -p ./ && cp -r ./src/bin ./out/",
     "watch": "tsc -watch -p ./",
     "pretest": "pnpm run compile && pnpm run lint",
     "lint": "eslint src --ext ts",
