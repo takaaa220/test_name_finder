@@ -19,7 +19,7 @@ func Test_Integration(t *testing.T) {
 
 	cases := map[string]struct {
 		args    args
-		want    string
+		want    *testNameFinder.TestName
 		wantErr bool
 	}{
 		"failure_file_not_found": {
@@ -67,15 +67,6 @@ func Test_Integration(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		"failure_selected_text_is_not_basic_lit": {
-			args: args{
-				fileName:    "table_is_map_test.go",
-				lineNumber:  14,
-				startCursor: 1,
-				endCursor:   6,
-			},
-			wantErr: true,
-		},
 		"success_table_is_map": {
 			args: args{
 				fileName:    "table_is_map_test.go",
@@ -83,7 +74,10 @@ func Test_Integration(t *testing.T) {
 				startCursor: 3,
 				endCursor:   8,
 			},
-			want: "\"Test_TableIsMap/test1\"",
+			want: &testNameFinder.TestName{
+				FuncName: "Test_TableIsMap",
+				TestCase: "test1",
+			},
 		},
 		"success_table_is_slice": {
 			args: args{
@@ -92,7 +86,22 @@ func Test_Integration(t *testing.T) {
 				startCursor: 10,
 				endCursor:   21,
 			},
-			want: "\"Test_TableIsSlice/test2 test2\"",
+			want: &testNameFinder.TestName{
+				FuncName: "Test_TableIsSlice",
+				TestCase: "test2 test2",
+			},
+		},
+		"success_selected_text_is_not_basic_lit": {
+			args: args{
+				fileName:    "table_is_map_test.go",
+				lineNumber:  14,
+				startCursor: 1,
+				endCursor:   6,
+			},
+			want: &testNameFinder.TestName{
+				FuncName: "Test_TableIsMap",
+				TestCase: "",
+			},
 		},
 	}
 

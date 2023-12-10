@@ -34,32 +34,48 @@ func (s Selection) Valid() (string, bool) {
 	return "", true
 }
 
-func FindTestName(filePath string, selection Selection) (string, error) {
+type TestName struct {
+	FuncName string
+	TestCase string
+}
+
+func (t TestName) String() string {
+	if t.TestCase == "" {
+		return t.FuncName
+	}
+
+	return fmt.Sprintf("%s/%s", t.FuncName, t.TestCase)
+}
+
+func FindTestName(filePath string, selection Selection) (*TestName, error) {
 	if msg, ok := selection.Valid(); !ok {
-		return "", fmt.Errorf(msg)
+		return nil, fmt.Errorf(msg)
 	}
 
 	fset := token.NewFileSet()
 	fileNode, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse file: %w", err)
+		return nil, fmt.Errorf("failed to parse file: %w", err)
 	}
 
 	file := fset.File(fileNode.Pos())
 
 	selectedBasicLit, found := findSelectedStringBasicLit(fileNode, file, selection)
-	if !found {
-		return "", fmt.Errorf("failed to find selected string basic literal")
-	}
 
-	selectedText := selectedBasicLit.Value[1 : len(selectedBasicLit.Value)-1]
+	var selectedText string
+	if found {
+		selectedText = selectedBasicLit.Value[1 : len(selectedBasicLit.Value)-1]
+	}
 
 	decl, found := findTargetTestFuncDecl(fileNode, file, selection)
 	if !found {
-		return "", fmt.Errorf("failed to find target test function declaration")
+		return nil, fmt.Errorf("failed to find target test function declaration")
 	}
 
-	return fmt.Sprintf("\"%s/%s\"", decl.Name.Name, selectedText), nil
+	return &TestName{
+		FuncName: decl.Name.Name,
+		TestCase: selectedText,
+	}, nil
 }
 
 func findSelectedStringBasicLit(fileNode *ast.File, file *token.File, selection Selection) (*ast.BasicLit, bool) {
