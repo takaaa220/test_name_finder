@@ -12,10 +12,20 @@
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
+    "menus": {
+      "editor/context": [
+        {
+          "when": "editorTextFocus && resourceFilename =~ /.*_test\\.go$/",
+          "command": "extension.findTest",
+          "group": "navigation"
+        }
+      ]
+    },
     "commands": [
       {
-        "command": "go-test-name-finder.helloWorld",
-        "title": "Hello World"
+        "command": "extension.findTest",
+        "title": "Find Go Unit Test Name",
+        "category": "Go Test Name Finder"
       }
     ]
   },
