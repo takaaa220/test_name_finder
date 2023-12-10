@@ -67,6 +67,15 @@ func Test_Integration(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		"failure_selected_text_is_not_basic_lit": {
+			args: args{
+				fileName:    "table_is_map_test.go",
+				lineNumber:  14,
+				startCursor: 1,
+				endCursor:   6,
+			},
+			wantErr: true,
+		},
 		"success_table_is_map": {
 			args: args{
 				fileName:    "table_is_map_test.go",
