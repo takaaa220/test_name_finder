@@ -60,22 +60,205 @@ func FindTestName(filePath string, selection Selection) (*TestName, error) {
 
 	file := fset.File(fileNode.Pos())
 
-	selectedBasicLit, found := findSelectedStringBasicLit(fileNode, file, selection)
-
-	var selectedText string
-	if found {
-		selectedText = selectedBasicLit.Value[1 : len(selectedBasicLit.Value)-1]
-	}
-
 	decl, found := findTargetTestFuncDecl(fileNode, file, selection)
 	if !found {
 		return nil, fmt.Errorf("failed to find target test function declaration")
 	}
 
+	// selectedBasicLit, found := findSelectedStringBasicLit(fileNode, file, selection)
+	testCase, _ := findTestCaseInTestFuncDecl(file, decl, selection)
+
 	return &TestName{
 		FuncName: decl.Name.Name,
-		TestCase: selectedText,
+		TestCase: testCase,
 	}, nil
+}
+
+func findTestCaseInTestFuncDecl(file *token.File, funcDecl *ast.FuncDecl, selection Selection) (string, bool) {
+	// FuncDecl直下のt.Runを行っているRangeStmtを探す
+	var rangeStmtForRunTest *ast.RangeStmt
+	for _, stmt := range funcDecl.Body.List {
+		rStmt, ok := stmt.(*ast.RangeStmt)
+		if !ok {
+			continue
+		}
+
+		for _, inStmt := range rStmt.Body.List {
+			exprStmt, ok := inStmt.(*ast.ExprStmt)
+			if !ok {
+				continue
+			}
+
+			callExpr, ok := exprStmt.X.(*ast.CallExpr)
+			if !ok {
+				continue
+			}
+
+			selectorExpr, ok := callExpr.Fun.(*ast.SelectorExpr)
+			if !ok {
+				continue
+			}
+
+			selectorIdent, ok := selectorExpr.X.(*ast.Ident)
+			if !ok {
+				continue
+			}
+
+			if selectorIdent.Name != "t" {
+				continue
+			}
+
+			if selectorExpr.Sel.Name != "Run" {
+				continue
+			}
+
+			rangeStmtForRunTest = rStmt
+			break
+		}
+
+		if rangeStmtForRunTest != nil {
+			break
+		}
+	}
+
+	if rangeStmtForRunTest == nil {
+		return "", false
+	}
+
+	tableVariableIdent, ok := rangeStmtForRunTest.X.(*ast.Ident)
+	if !ok {
+		return "", false
+	}
+
+	tableVariableName := tableVariableIdent.Name
+
+	// FuncDecl直下のLhs[0].Ident.NameがtableVariableNameであるAssignStmtを探す
+	var assignStmtForTableVariable *ast.AssignStmt
+	for _, stmt := range funcDecl.Body.List {
+		assignStmt, _ := stmt.(*ast.AssignStmt)
+		if assignStmt == nil {
+			continue
+		}
+
+		if len(assignStmt.Lhs) == 0 {
+			continue
+		}
+
+		ident, ok := assignStmt.Lhs[0].(*ast.Ident)
+		if !ok {
+			continue
+		}
+
+		if ident.Name != tableVariableName {
+			continue
+		}
+
+		assignStmtForTableVariable = assignStmt
+	}
+
+	if assignStmtForTableVariable == nil {
+		return "", false
+	}
+
+	// assignStmtForTableVariableからテスト名の特定方法を決定する
+	compositeLit, ok := assignStmtForTableVariable.Rhs[0].(*ast.CompositeLit)
+	if !ok {
+		return "", false
+	}
+
+	type testNameDecider struct {
+		isSlice       bool
+		testNameField string
+	}
+	var decider *testNameDecider
+	if len(assignStmtForTableVariable.Rhs) == 0 {
+		return "", false
+	}
+
+	if arrayType, ok := compositeLit.Type.(*ast.ArrayType); ok {
+		if _, ok := arrayType.Elt.(*ast.StructType); ok {
+			decider = &testNameDecider{
+				isSlice:       true,
+				testNameField: "name",
+			}
+		}
+	}
+	if mapType, ok := compositeLit.Type.(*ast.MapType); ok {
+		if _, ok := mapType.Value.(*ast.StructType); ok {
+			decider = &testNameDecider{
+				isSlice: false,
+			}
+		}
+	}
+
+	if decider == nil {
+		return "", false
+	}
+
+	// テスト名を特定する
+	var testCase string
+	for _, elt := range compositeLit.Elts {
+		nodeStartLineNumber := file.Line(elt.Pos())
+		nodeEndLineNumber := file.Line(elt.End())
+
+		if nodeStartLineNumber > selection.LineNumber || selection.LineNumber > nodeEndLineNumber {
+			continue
+		}
+
+		if !decider.isSlice {
+			keyValueExpr, ok := elt.(*ast.KeyValueExpr)
+			if !ok {
+				continue
+			}
+
+			keyBasicLit, ok := keyValueExpr.Key.(*ast.BasicLit)
+			if !ok {
+				continue
+			}
+
+			if keyBasicLit.Kind != token.STRING {
+				continue
+			}
+
+			testCase = strings.Trim(keyBasicLit.Value, "\"")
+			break
+		}
+
+		compositeLit, ok := elt.(*ast.CompositeLit)
+		if !ok {
+			continue
+		}
+
+		for _, elt := range compositeLit.Elts {
+			keyValueExpr, ok := elt.(*ast.KeyValueExpr)
+			if !ok {
+				continue
+			}
+
+			keyIdent, ok := keyValueExpr.Key.(*ast.Ident)
+			if !ok {
+				continue
+			}
+
+			if keyIdent.Name != decider.testNameField {
+				continue
+			}
+
+			basicLit, ok := keyValueExpr.Value.(*ast.BasicLit)
+			if !ok {
+				continue
+			}
+
+			if basicLit.Kind != token.STRING {
+				continue
+			}
+
+			testCase = strings.Trim(basicLit.Value, "\"")
+			break
+		}
+	}
+
+	return testCase, testCase != ""
 }
 
 func findSelectedStringBasicLit(fileNode *ast.File, file *token.File, selection Selection) (*ast.BasicLit, bool) {
