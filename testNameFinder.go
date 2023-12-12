@@ -212,6 +212,76 @@ type testNameDecider struct {
 	testNameField string
 }
 
+func (d testNameDecider) findTest(expr ast.Expr) (string, bool) {
+	if d.isSlice {
+		return d.findTestFromSlice(expr)
+	}
+
+	return d.findTestFromMap(expr)
+}
+
+func (d testNameDecider) findTestFromMap(expr ast.Expr) (string, bool) {
+	if d.isSlice {
+		return "", false
+	}
+
+	keyValueExpr, ok := expr.(*ast.KeyValueExpr)
+	if !ok {
+		return "", false
+	}
+
+	basicLit, ok := keyValueExpr.Key.(*ast.BasicLit)
+	if !ok {
+		return "", false
+	}
+
+	if basicLit.Kind != token.STRING {
+		return "", false
+	}
+
+	return strings.Trim(basicLit.Value, "\""), true
+}
+
+func (d testNameDecider) findTestFromSlice(expr ast.Expr) (string, bool) {
+	if !d.isSlice {
+		return "", false
+	}
+
+	compositeLit, ok := expr.(*ast.CompositeLit)
+	if !ok {
+		return "", false
+	}
+
+	for _, elt := range compositeLit.Elts {
+		keyValueExpr, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			continue
+		}
+
+		keyIdent, ok := keyValueExpr.Key.(*ast.Ident)
+		if !ok {
+			continue
+		}
+
+		if keyIdent.Name != d.testNameField {
+			continue
+		}
+
+		basicLit, ok := keyValueExpr.Value.(*ast.BasicLit)
+		if !ok {
+			continue
+		}
+
+		if basicLit.Kind != token.STRING {
+			continue
+		}
+
+		return strings.Trim(basicLit.Value, "\""), true
+	}
+
+	return "", false
+}
+
 func createTestNameDecider(assignStmt *ast.AssignStmt) *testNameDecider {
 	compositeLit, ok := assignStmt.Rhs[0].(*ast.CompositeLit)
 	if !ok || len(assignStmt.Lhs) == 0 {
@@ -238,7 +308,6 @@ func createTestNameDecider(assignStmt *ast.AssignStmt) *testNameDecider {
 }
 
 func findTestCaseFromSelection(assignStmtRhsCompositeLit *ast.CompositeLit, file *token.File, selection Selection, decider *testNameDecider) string {
-	var testCase string
 	for _, elt := range assignStmtRhsCompositeLit.Elts {
 		nodeStartLineNumber := file.Line(elt.Pos())
 		nodeEndLineNumber := file.Line(elt.End())
@@ -247,57 +316,13 @@ func findTestCaseFromSelection(assignStmtRhsCompositeLit *ast.CompositeLit, file
 			continue
 		}
 
-		if !decider.isSlice {
-			keyValueExpr, ok := elt.(*ast.KeyValueExpr)
-			if !ok {
-				continue
-			}
-
-			keyBasicLit, ok := keyValueExpr.Key.(*ast.BasicLit)
-			if !ok {
-				continue
-			}
-
-			if keyBasicLit.Kind != token.STRING {
-				continue
-			}
-
-			testCase = strings.Trim(keyBasicLit.Value, "\"")
-			break
-		}
-
-		compositeLit, ok := elt.(*ast.CompositeLit)
-		if !ok {
+		testName, found := decider.findTest(elt)
+		if !found {
 			continue
 		}
 
-		for _, elt := range compositeLit.Elts {
-			keyValueExpr, ok := elt.(*ast.KeyValueExpr)
-			if !ok {
-				continue
-			}
-
-			keyIdent, ok := keyValueExpr.Key.(*ast.Ident)
-			if !ok {
-				continue
-			}
-
-			if keyIdent.Name != decider.testNameField {
-				continue
-			}
-
-			basicLit, ok := keyValueExpr.Value.(*ast.BasicLit)
-			if !ok {
-				continue
-			}
-
-			if basicLit.Kind != token.STRING {
-				continue
-			}
-
-			testCase = strings.Trim(basicLit.Value, "\"")
-			break
-		}
+		return testName
 	}
-	return testCase
+
+	return ""
 }
