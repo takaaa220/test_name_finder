@@ -65,7 +65,6 @@ func FindTestName(filePath string, selection Selection) (*TestName, error) {
 		return nil, fmt.Errorf("failed to find target test function declaration")
 	}
 
-	// selectedBasicLit, found := findSelectedStringBasicLit(fileNode, file, selection)
 	testCase, _ := findTestCaseInTestFuncDecl(file, decl, selection)
 
 	return &TestName{
@@ -74,9 +73,71 @@ func FindTestName(filePath string, selection Selection) (*TestName, error) {
 	}, nil
 }
 
+func findTargetTestFuncDecl(fileNode *ast.File, file *token.File, selection Selection) (*ast.FuncDecl, bool) {
+	for _, decl := range fileNode.Decls {
+		funcDecl, ok := decl.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+
+		lineStartPos := file.LineStart(selection.LineNumber)
+
+		start := lineStartPos + token.Pos(selection.StartCursor)
+		end := lineStartPos + token.Pos(selection.EndCursor)
+
+		if funcDecl.Pos() <= start && end <= funcDecl.End() {
+			if strings.HasPrefix(funcDecl.Name.Name, "Test") {
+				return funcDecl, true
+			}
+
+			return nil, false
+		}
+	}
+
+	return nil, false
+}
+
 func findTestCaseInTestFuncDecl(file *token.File, funcDecl *ast.FuncDecl, selection Selection) (string, bool) {
-	// FuncDecl直下のt.Runを行っているRangeStmtを探す
-	var rangeStmtForRunTest *ast.RangeStmt
+	// func TestXXX(t testing.T)
+	if len(funcDecl.Type.Params.List) == 0 {
+		return "", false
+	}
+	testingTVariableName := funcDecl.Type.Params.List[0].Names[0].Name
+
+	rangeStmtForRunTest := findRangeStmtForRunTest(funcDecl, testingTVariableName)
+	if rangeStmtForRunTest == nil {
+		return "", false
+	}
+
+	tableVariableIdent, ok := rangeStmtForRunTest.X.(*ast.Ident)
+	if !ok {
+		return "", false
+	}
+
+	tableVariableName := tableVariableIdent.Name
+
+	assignStmtForTableVariable := findAssignStmtOfTableVariable(funcDecl, tableVariableName)
+	if assignStmtForTableVariable == nil {
+		return "", false
+	}
+
+	decider := createTestNameDecider(assignStmtForTableVariable)
+	if decider == nil {
+		return "", false
+	}
+
+	assignStmtRhsCompositeLit, ok := assignStmtForTableVariable.Rhs[0].(*ast.CompositeLit)
+	if !ok {
+		return "", false
+	}
+
+	testCase := findTestCaseFromSelection(assignStmtRhsCompositeLit, file, selection, decider)
+
+	return testCase, testCase != ""
+}
+
+// find RangeStmt that has t.Run CallExpr
+func findRangeStmtForRunTest(funcDecl *ast.FuncDecl, testingTVariableName string) *ast.RangeStmt {
 	for _, stmt := range funcDecl.Body.List {
 		rStmt, ok := stmt.(*ast.RangeStmt)
 		if !ok {
@@ -104,7 +165,7 @@ func findTestCaseInTestFuncDecl(file *token.File, funcDecl *ast.FuncDecl, select
 				continue
 			}
 
-			if selectorIdent.Name != "t" {
+			if selectorIdent.Name != testingTVariableName {
 				continue
 			}
 
@@ -112,28 +173,15 @@ func findTestCaseInTestFuncDecl(file *token.File, funcDecl *ast.FuncDecl, select
 				continue
 			}
 
-			rangeStmtForRunTest = rStmt
-			break
-		}
-
-		if rangeStmtForRunTest != nil {
-			break
+			return rStmt
 		}
 	}
 
-	if rangeStmtForRunTest == nil {
-		return "", false
-	}
+	return nil
+}
 
-	tableVariableIdent, ok := rangeStmtForRunTest.X.(*ast.Ident)
-	if !ok {
-		return "", false
-	}
-
-	tableVariableName := tableVariableIdent.Name
-
-	// FuncDecl直下のLhs[0].Ident.NameがtableVariableNameであるAssignStmtを探す
-	var assignStmtForTableVariable *ast.AssignStmt
+// find AssignStmt whose first Lhs's name is tableVariableName
+func findAssignStmtOfTableVariable(funcDecl *ast.FuncDecl, tableVariableName string) *ast.AssignStmt {
 	for _, stmt := range funcDecl.Body.List {
 		assignStmt, _ := stmt.(*ast.AssignStmt)
 		if assignStmt == nil {
@@ -153,31 +201,26 @@ func findTestCaseInTestFuncDecl(file *token.File, funcDecl *ast.FuncDecl, select
 			continue
 		}
 
-		assignStmtForTableVariable = assignStmt
+		return assignStmt
 	}
 
-	if assignStmtForTableVariable == nil {
-		return "", false
-	}
+	return nil
+}
 
-	// assignStmtForTableVariableからテスト名の特定方法を決定する
-	compositeLit, ok := assignStmtForTableVariable.Rhs[0].(*ast.CompositeLit)
-	if !ok {
-		return "", false
-	}
+type testNameDecider struct {
+	isSlice       bool
+	testNameField string
+}
 
-	type testNameDecider struct {
-		isSlice       bool
-		testNameField string
-	}
-	var decider *testNameDecider
-	if len(assignStmtForTableVariable.Rhs) == 0 {
-		return "", false
+func createTestNameDecider(assignStmt *ast.AssignStmt) *testNameDecider {
+	compositeLit, ok := assignStmt.Rhs[0].(*ast.CompositeLit)
+	if !ok || len(assignStmt.Lhs) == 0 {
+		return nil
 	}
 
 	if arrayType, ok := compositeLit.Type.(*ast.ArrayType); ok {
 		if _, ok := arrayType.Elt.(*ast.StructType); ok {
-			decider = &testNameDecider{
+			return &testNameDecider{
 				isSlice:       true,
 				testNameField: "name",
 			}
@@ -185,19 +228,18 @@ func findTestCaseInTestFuncDecl(file *token.File, funcDecl *ast.FuncDecl, select
 	}
 	if mapType, ok := compositeLit.Type.(*ast.MapType); ok {
 		if _, ok := mapType.Value.(*ast.StructType); ok {
-			decider = &testNameDecider{
+			return &testNameDecider{
 				isSlice: false,
 			}
 		}
 	}
 
-	if decider == nil {
-		return "", false
-	}
+	return nil
+}
 
-	// テスト名を特定する
+func findTestCaseFromSelection(assignStmtRhsCompositeLit *ast.CompositeLit, file *token.File, selection Selection, decider *testNameDecider) string {
 	var testCase string
-	for _, elt := range compositeLit.Elts {
+	for _, elt := range assignStmtRhsCompositeLit.Elts {
 		nodeStartLineNumber := file.Line(elt.Pos())
 		nodeEndLineNumber := file.Line(elt.End())
 
@@ -257,62 +299,5 @@ func findTestCaseInTestFuncDecl(file *token.File, funcDecl *ast.FuncDecl, select
 			break
 		}
 	}
-
-	return testCase, testCase != ""
-}
-
-func findSelectedStringBasicLit(fileNode *ast.File, file *token.File, selection Selection) (*ast.BasicLit, bool) {
-	var basicLit *ast.BasicLit
-
-	ast.Inspect(fileNode, func(node ast.Node) bool {
-		b, ok := node.(*ast.BasicLit)
-		if !ok {
-			return true
-		}
-
-		lineStartPos := file.LineStart(selection.LineNumber)
-
-		start := lineStartPos + token.Pos(selection.StartCursor)
-		end := lineStartPos + token.Pos(selection.EndCursor)
-
-		if b.Pos() <= start && end <= b.End() {
-			if b.Kind == token.STRING {
-				basicLit = b
-			}
-
-			return false
-		}
-
-		return true
-	})
-
-	if basicLit == nil {
-		return nil, false
-	}
-
-	return basicLit, true
-}
-
-func findTargetTestFuncDecl(fileNode *ast.File, file *token.File, selection Selection) (*ast.FuncDecl, bool) {
-	for _, decl := range fileNode.Decls {
-		funcDecl, ok := decl.(*ast.FuncDecl)
-		if !ok {
-			continue
-		}
-
-		lineStartPos := file.LineStart(selection.LineNumber)
-
-		start := lineStartPos + token.Pos(selection.StartCursor)
-		end := lineStartPos + token.Pos(selection.EndCursor)
-
-		if funcDecl.Pos() <= start && end <= funcDecl.End() {
-			if strings.HasPrefix(funcDecl.Name.Name, "Test") {
-				return funcDecl, true
-			}
-
-			return nil, false
-		}
-	}
-
-	return nil, false
+	return testCase
 }
