@@ -67,7 +67,7 @@ func Test_Integration(t *testing.T) {
 			},
 			wantErr: true,
 		},
-		"success_table_is_map": {
+		"success_table_is_map_1": {
 			args: args{
 				fileName:    "table_is_map_test.go",
 				lineNumber:  19,
@@ -79,7 +79,67 @@ func Test_Integration(t *testing.T) {
 				TestCase: "test1",
 			},
 		},
-		"success_table_is_slice": {
+		"success_table_is_map_2": {
+			args: args{
+				fileName:    "table_is_map_test.go",
+				lineNumber:  27,
+				startCursor: 10,
+				endCursor:   17,
+			},
+			want: &testNameFinder.TestName{
+				FuncName: "Test_TableIsMap",
+				TestCase: "test2 test2",
+			},
+		},
+		"success_table_is_map_3": {
+			args: args{
+				fileName:    "table_is_map_test.go",
+				lineNumber:  19,
+				startCursor: 0,
+				endCursor:   0,
+			},
+			want: &testNameFinder.TestName{
+				FuncName: "Test_TableIsMap",
+				TestCase: "test1",
+			},
+		},
+		"success_table_is_map_4": {
+			args: args{
+				fileName:    "table_is_map_test.go",
+				lineNumber:  25,
+				startCursor: 4,
+				endCursor:   4,
+			},
+			want: &testNameFinder.TestName{
+				FuncName: "Test_TableIsMap",
+				TestCase: "test1",
+			},
+		},
+		"success_table_is_map_out_of_map_1": {
+			args: args{
+				fileName:    "table_is_map_test.go",
+				lineNumber:  18,
+				startCursor: 3,
+				endCursor:   3,
+			},
+			want: &testNameFinder.TestName{
+				FuncName: "Test_TableIsMap",
+				TestCase: "",
+			},
+		},
+		"success_table_is_map_out_of_map_2": {
+			args: args{
+				fileName:    "table_is_map_test.go",
+				lineNumber:  33,
+				startCursor: 2,
+				endCursor:   2,
+			},
+			want: &testNameFinder.TestName{
+				FuncName: "Test_TableIsMap",
+				TestCase: "",
+			},
+		},
+		"success_table_is_slice_1": {
 			args: args{
 				fileName:    "table_is_slice_test.go",
 				lineNumber:  29,
@@ -91,15 +151,63 @@ func Test_Integration(t *testing.T) {
 				TestCase: "test2 test2",
 			},
 		},
-		"success_selected_text_is_not_basic_lit": {
+		"success_table_is_slice_2": {
 			args: args{
-				fileName:    "table_is_map_test.go",
-				lineNumber:  14,
-				startCursor: 1,
-				endCursor:   6,
+				fileName:    "table_is_slice_test.go",
+				lineNumber:  20,
+				startCursor: 0,
+				endCursor:   0,
 			},
 			want: &testNameFinder.TestName{
-				FuncName: "Test_TableIsMap",
+				FuncName: "Test_TableIsSlice",
+				TestCase: "test1",
+			},
+		},
+		"success_table_is_slice_3": {
+			args: args{
+				fileName:    "table_is_slice_test.go",
+				lineNumber:  35,
+				startCursor: 4,
+				endCursor:   4,
+			},
+			want: &testNameFinder.TestName{
+				FuncName: "Test_TableIsSlice",
+				TestCase: "test2 test2",
+			},
+		},
+		"success_table_is_slice_out_of_slice_1": {
+			args: args{
+				fileName:    "table_is_slice_test.go",
+				lineNumber:  19,
+				startCursor: 3,
+				endCursor:   3,
+			},
+			want: &testNameFinder.TestName{
+				FuncName: "Test_TableIsSlice",
+				TestCase: "",
+			},
+		},
+		"success_table_is_slice_out_of_slice_2": {
+			args: args{
+				fileName:    "table_is_slice_test.go",
+				lineNumber:  36,
+				startCursor: 1,
+				endCursor:   1,
+			},
+			want: &testNameFinder.TestName{
+				FuncName: "Test_TableIsSlice",
+				TestCase: "",
+			},
+		},
+		"success_table_is_not_supported_slice": {
+			args: args{
+				fileName:    "table_is_not_supported_slice_test.go",
+				lineNumber:  21,
+				startCursor: 10,
+				endCursor:   13,
+			},
+			want: &testNameFinder.TestName{
+				FuncName: "Test_TableIsNotSupportedSlice",
 				TestCase: "",
 			},
 		},
