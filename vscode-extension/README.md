@@ -7,7 +7,7 @@ An VSCode extension to run Go tests.
 Effortlessly run tests defined at your current cursor location. This feature allows you to quickly execute specific tests without the need to navigate through your test files or use a terminal.
 And our extension enables you to run individual sub-tests for Table Driven Tests.
 
-![demo](./demo.mp4)
+![demo](https://github.com/takaaa220/test_name_finder/blob/main/vscode-extension/demo.gif)
 
 ## Requirements
 
