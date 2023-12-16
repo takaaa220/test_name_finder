@@ -2,7 +2,7 @@
   "name": "go-test-executor",
   "displayName": "go-test-executor",
   "description": "",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "takaaa220",
   "repository": {
     "type": "git",
