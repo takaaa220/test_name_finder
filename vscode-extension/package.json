@@ -3,6 +3,11 @@
   "displayName": "go-test-executor",
   "description": "",
   "version": "0.0.1",
+  "publisher": "takaaa220",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/takaaa220/test_name_finder"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },

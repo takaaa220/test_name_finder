@@ -1,21 +1,22 @@
 # go-test-executor
 
+An VSCode extension to run Go tests.
+
 ## Features
 
-Run go tests from the editor.
+Effortlessly run tests defined at your current cursor location. This feature allows you to quickly execute specific tests without the need to navigate through your test files or use a terminal.
+And our extension enables you to run individual sub-tests for Table Driven Tests.
+
+![demo](./demo.mp4)
+
+## Requirements
+
+This extension requires [Go for Visual Studio Code](https://marketplace.visualstudio.com/items?itemName=golang.Go) extension.
 
 ## Installation
 
-This extension is not published yet. To install it, you need to build it yourself.
+You can install from [here](https://marketplace.visualstudio.com/items?itemName=takaaa220.go-test-executor).
 
-1. Build the extension
+## LICENSE
 
-```bash
-vsce package --no-dependencies
-```
-
-2. Install the extension
-
-```bash
-code --install-extension go-test-executor-0.0.1.vsix
-```
+[Apache License Version 2.0](../LICENSE)
